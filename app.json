@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "passa l\u00e1?",
+    "slug": "passa-la",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.passala.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#17150F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.passala.app"
+    },
+    "scheme": "passala",
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
