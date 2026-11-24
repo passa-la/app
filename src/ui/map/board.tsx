@@ -149,6 +149,12 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
         >
             <Camera ref={cam} initialViewState={bounds ? { bounds, padding: pad } : { center: HUB, zoom: 11 }} />
 
+            {/* Same ids as the Liberty POI layers: MapLibre adopts them, and the filter drops OSM bus stops that don't match ours. */}
+            <Layer id="poi_transit" type="symbol" filter={['match', ['get', 'class'], ['airport', 'rail'], true, false]} />
+            <Layer id="poi_r1" type="symbol" filter={['all', ['match', ['geometry-type'], ['MultiPoint', 'Point'], true, false], ['>=', ['get', 'rank'], 1], ['<', ['get', 'rank'], 7], ['!=', ['get', 'class'], 'bus']]} />
+            <Layer id="poi_r7" type="symbol" filter={['all', ['match', ['geometry-type'], ['MultiPoint', 'Point'], true, false], ['>=', ['get', 'rank'], 7], ['<', ['get', 'rank'], 20], ['!=', ['get', 'class'], 'bus']]} />
+            <Layer id="poi_r20" type="symbol" filter={['all', ['match', ['geometry-type'], ['MultiPoint', 'Point'], true, false], ['>=', ['get', 'rank'], 20], ['!=', ['get', 'class'], 'bus']]} />
+
             <GeoJSONSource id="area" data={area}>
                 <Layer id="area-fill" type="fill" paint={{ 'fill-color': t.sun, 'fill-opacity': 0.14 }} />
                 <Layer id="area-edge" type="line" paint={{ 'line-color': INK, 'line-width': 1.25, 'line-opacity': 0.55, 'line-dasharray': [3, 2] }} />
