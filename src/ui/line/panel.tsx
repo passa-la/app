@@ -1,7 +1,8 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Day } from '../../domain/transit/day.ts'
+import type { Place } from '../../domain/geo/place.ts'
 import type { Stop } from '../../domain/transit/stop.ts'
 import { Button } from '../button.tsx'
+import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
 import { clock, DAYS, hours, label, wait } from '../format.ts'
 import { useTone } from '../theme.ts'
@@ -9,7 +10,9 @@ import type { LineState } from './use.ts'
 
 const named = (s: Stop) => s.name || `Parada ${s.id}`
 
-export function LinePanel({ state, onClose }: { state: LineState; onClose: () => void }) {
+const PACE = 75
+
+export function LinePanel({ state, dest = null, onClose }: { state: LineState; dest?: Place | null; onClose: () => void }) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
 
@@ -36,14 +39,7 @@ export function LinePanel({ state, onClose }: { state: LineState; onClose: () =>
                 </Button>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-                {Day.all.map((k) => (
-                    <Button key={k} variant="chip" on={day === k} onPress={() => state.pick(k)}>
-                        <Text style={[s.chip, { color: day === k ? t.paper : t.fg }, !d.line.runs(k) && s.strike]}>{DAYS[k].name}</Text>
-                        {k === today && <Text style={[s.tiny, { color: day === k ? t.paper : t.mute }]}>hoje</Text>}
-                    </Button>
-                ))}
-            </ScrollView>
+            <Chips day={day} today={today} onDay={state.pick} runs={(k) => d.line.runs(k)} />
 
             {!d.ways.length && <Text style={[s.dash, { color: t.mute, borderColor: t.edge }]}>Essa linha não roda {when}. Escolhe outro dia.</Text>}
 
@@ -117,14 +113,21 @@ export function LinePanel({ state, onClose }: { state: LineState; onClose: () =>
                 </View>
             )}
 
-            {leg?.drop && end && (
+            {leg?.drop && (end || dest) && (
                 <View style={[s.card, { backgroundColor: t.card, borderColor: t.edge }]}>
                     <Text style={[s.over, { color: t.mute }]}>ONDE DESCER · {label(leg.dir).toUpperCase()}</Text>
                     <Text style={[s.stop, { color: t.fg }]}>{named(leg.drop.stop)}</Text>
+                    {dest && (
+                        <Text style={[s.small, { color: t.mute }]}>
+                            {meters(leg.drop.meters)} de {dest.name} · {Math.max(1, Math.round(leg.drop.meters / PACE))} min a pé
+                        </Text>
+                    )}
                     {arrive !== '' && <Text style={[s.small, { color: t.mute }]}>{arrive}</Text>}
-                    <Button variant="ghost" onPress={state.unend} style={s.left}>
-                        <Text style={[s.small, { color: t.mute }]}>Tirar essa parada</Text>
-                    </Button>
+                    {end && (
+                        <Button variant="ghost" onPress={state.unend} style={s.left}>
+                            <Text style={[s.small, { color: t.mute }]}>Tirar essa parada</Text>
+                        </Button>
+                    )}
                 </View>
             )}
 
