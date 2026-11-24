@@ -1,0 +1,72 @@
+name: Dados das linhas
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Publicar mesmo se o feed não mudou
+        type: boolean
+        default: false
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Gerar os dados a partir do GTFS
+        run: pnpm data
+
+      - name: Comparar com os dados publicados
+        id: diff
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          gh release download data --pattern net.json --output old.json 2>/dev/null || echo '{}' > old.json
+          new="$(jq -r '"\(.feed) \(.tag)"' dist/net.json)"
+          old="$(jq -r '"\(.feed // "") \(.tag // "")"' old.json)"
+          echo "Publicado: $old"
+          echo "Gerado:    $new"
+          if [ "$new" != "$old" ] || [ "$FORCE" = "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publicar no release data
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          feed="$(jq -r .feed dist/net.json)"
+          lines="$(jq -r .lines dist/net.json)"
+          notes="Rede do Grande Recife (feed $feed, $lines linhas), gerada em $(date -u +%Y-%m-%dT%H:%MZ). O app baixa daqui."
+          if ! gh release view data >/dev/null 2>&1; then
+            gh release create data --prerelease --title "Dados das linhas" --notes "$notes"
+          fi
+          gh release upload data dist/net.bin.gz dist/net.json --clobber
+          gh release edit data --notes "$notes"
+          echo "Publicado feed $feed ($lines linhas)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sem mudança
+        if: steps.diff.outputs.changed != 'true'
+        run: echo "O feed não mudou desde a última publicação." >> "$GITHUB_STEP_SUMMARY"
