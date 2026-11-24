@@ -52,6 +52,7 @@ const main = async () => {
     const meta = { feed: feed.version, tag, built, hash, size: gz.length, lines: net.lines.length }
 
     await writeFile(join(out, 'net.bin'), raw)
+    await writeFile(join(out, 'net.json'), JSON.stringify({ feed: feed.version, built }) + '\n')
     await writeFile(join(dist, 'net.bin.gz'), gz)
     await writeFile(join(dist, 'net.json'), JSON.stringify(meta, null, 2) + '\n')
 
