@@ -97,7 +97,7 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
             )}
 
             {d.ways.length > 0 && !leg?.board && (
-                <Text style={[s.dash, { color: t.mute, borderColor: t.edge }]}>Toca numa parada no mapa ou na lista pra ver a que horas o ônibus passa nela.</Text>
+                <Text style={[s.dash, { color: t.mute, borderColor: t.edge }]}>Toca numa parada no mapa pra ver a que horas o ônibus passa nela.</Text>
             )}
 
             {leg?.board && (
@@ -203,33 +203,6 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                 </View>
             )}
 
-            {way && (
-                <View>
-                    <Text style={[s.over, { color: t.mute }]}>
-                        PARADAS · {label(way.dir).toUpperCase()} · {way.stops.length}
-                    </Text>
-                    {way.stops.map((st, i) => {
-                        const a = leg?.board?.stop.id === st.id && leg.board.seq === i
-                        const b = end !== null && leg?.drop?.stop.id === st.id && leg.drop.seq === i
-
-                        return (
-                            <Button key={`${st.id}-${i}`} variant="row" onPress={() => state.tap(st.id)} style={s.row}>
-                                <View
-                                    style={[
-                                        s.dot,
-                                        { borderColor: t.fg, backgroundColor: t.card },
-                                        a && { borderWidth: 4 },
-                                        b && { backgroundColor: t.fg, borderColor: t.sun, borderWidth: 4 },
-                                    ]}
-                                />
-                                <Text style={[s.stopRow, { color: a || b ? t.fg : t.mute }, (a || b) && s.bold]} numberOfLines={1}>
-                                    {named(st)}
-                                </Text>
-                            </Button>
-                        )
-                    })}
-                </View>
-            )}
         </ScrollView>
     )
 }
@@ -259,8 +232,4 @@ const s = StyleSheet.create({
     hour: { flexDirection: 'row', gap: 14 },
     h: { width: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
     mins: { flex: 1, fontVariant: ['tabular-nums'] },
-    row: { paddingVertical: 9 },
-    dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
-    stopRow: { flex: 1, fontSize: 15 },
-    bold: { fontWeight: '600' },
 })
