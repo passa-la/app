@@ -41,6 +41,6 @@ yarn-error.*
 /android
 
 # generated data
-/assets/net.bin.gz
-/assets/net.json
+/assets/net.bin
+/dist/
 /tmp/

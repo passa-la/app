@@ -33,8 +33,10 @@ const fetchFeed = async (url: string, dir: string): Promise<[string, string | nu
 
 const main = async () => {
     const out = arg('out', 'assets')
+    const dist = arg('dist', 'dist')
     const tmp = arg('tmp', 'tmp')
     await mkdir(out, { recursive: true })
+    await mkdir(dist, { recursive: true })
     await mkdir(tmp, { recursive: true })
 
     const start = Date.now()
@@ -49,8 +51,9 @@ const main = async () => {
     const hash = createHash('sha256').update(gz).digest('hex')
     const meta = { feed: feed.version, tag, built, hash, size: gz.length, lines: net.lines.length }
 
-    await writeFile(join(out, 'net.bin.gz'), gz)
-    await writeFile(join(out, 'net.json'), JSON.stringify(meta, null, 2) + '\n')
+    await writeFile(join(out, 'net.bin'), raw)
+    await writeFile(join(dist, 'net.bin.gz'), gz)
+    await writeFile(join(dist, 'net.json'), JSON.stringify(meta, null, 2) + '\n')
 
     const mb = (n: number) => (n / 1048576).toFixed(1)
     console.log(`feed ${feed.version}: ${net.lines.length} lines, ${net.stops.length} stops, ${net.patterns.length} patterns, ${net.runs.length} runs`)
