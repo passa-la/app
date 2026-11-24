@@ -1,6 +1,6 @@
-import { Camera, type CameraRef, GeoJSONSource, Layer, Map, ViewAnnotation } from '@maplibre/maplibre-react-native'
+import { Camera, type CameraRef, GeoJSONSource, Images, Layer, Map } from '@maplibre/maplibre-react-native'
 import { useEffect, useMemo, useRef } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 import { Point } from '../../domain/geo/point.ts'
 import type { Stop } from '../../domain/transit/stop.ts'
 import type { Way } from '../../domain/transit/way.ts'
@@ -8,6 +8,7 @@ import { ring } from './shape.ts'
 import { useTone } from '../theme.ts'
 
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
+const ICONS = { me: require('../../../assets/me.png'), bus: require('../../../assets/bus.png'), cone: require('../../../assets/cone.png') }
 const INK = '#17150f'
 const HUB: [number, number] = [-34.8711, -8.0631]
 const SIDE = 3
@@ -27,6 +28,7 @@ type Props = {
     deg?: number | null
     onTap?: (p: Point) => void
     walk?: Point[]
+    bus?: boolean
 }
 
 const pair = (p: Point): [number, number] => [p.lon, p.lat]
@@ -48,7 +50,7 @@ const box = (pts: Point[]): [number, number, number, number] | null => {
     return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
-export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0, me = null, deg = null, onTap, walk = [] }: Props) {
+export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0, me = null, deg = null, onTap, walk = [], bus = false }: Props) {
     const t = useTone()
     const cam = useRef<CameraRef>(null)
     const shown = useMemo(() => ways.filter((w) => focus === null || w.dir === focus), [ways, focus])
@@ -95,6 +97,14 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
             features: walk.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: walk.map(pair) } }] : [],
         }),
         [walk],
+    )
+
+    const you = useMemo<GeoJSON.FeatureCollection>(
+        () => ({
+            type: 'FeatureCollection',
+            features: me ? [{ type: 'Feature', properties: { deg: deg ?? 0, aim: deg === null ? 0 : 1, bus: bus ? 1 : 0 }, geometry: { type: 'Point', coordinates: pair(me) } }] : [],
+        }),
+        [me, deg, bus],
     )
 
     const bounds = useMemo(() => {
@@ -221,35 +231,34 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
                 />
             </GeoJSONSource>
 
-            {me && (
-                <ViewAnnotation id="me" lngLat={pair(me)} anchor="center">
-                    <View style={s.me} pointerEvents="none">
-                        {deg !== null && (
-                            <View style={[s.fan, { transform: [{ rotate: `${deg}deg` }] }]}>
-                                <View style={[s.cone, { borderBottomColor: t.sun }]} />
-                            </View>
-                        )}
-                        <View style={s.you} />
-                    </View>
-                </ViewAnnotation>
-            )}
+            <Images images={ICONS} />
+
+            <GeoJSONSource id="you" data={you}>
+                <Layer
+                    id="you-cone"
+                    type="symbol"
+                    filter={['==', ['get', 'aim'], 1]}
+                    layout={{
+                        'icon-image': 'cone',
+                        'icon-size': 0.32,
+                        'icon-anchor': 'bottom',
+                        'icon-rotate': ['get', 'deg'],
+                        'icon-rotation-alignment': 'map',
+                        'icon-pitch-alignment': 'map',
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true,
+                    }}
+                />
+                <Layer
+                    id="you"
+                    type="symbol"
+                    layout={{ 'icon-image': ['case', ['==', ['get', 'bus'], 1], 'bus', 'me'], 'icon-size': 0.25, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true }}
+                />
+            </GeoJSONSource>
         </Map>
     )
 }
 
 const s = StyleSheet.create({
     map: { flex: 1 },
-    me: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-    fan: { position: 'absolute', width: 120, height: 120, alignItems: 'center' },
-    cone: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 26,
-        borderRightWidth: 26,
-        borderBottomWidth: 60,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        opacity: 0.55,
-    },
-    you: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#17150f', borderWidth: 3, borderColor: '#ffffff' },
 })

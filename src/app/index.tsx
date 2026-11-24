@@ -203,6 +203,7 @@ export default function Home() {
                 radius={radius}
                 me={me.me}
                 deg={me.deg}
+                bus={me.bus}
                 onTap={tap}
                 walk={walk?.points ?? []}
             />
