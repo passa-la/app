@@ -11,6 +11,7 @@ import { Nearby } from '../domain/transit/nearby.ts'
 import { Timetable } from '../domain/transit/timetable.ts'
 import { area } from '../infra/area.ts'
 import { data, type Meta } from '../infra/data.ts'
+import { Osrm } from '../infra/osrm.ts'
 import { Photon } from '../infra/photon.ts'
 import { shelf } from '../infra/shelf.ts'
 
@@ -21,6 +22,7 @@ export type Kit = {
     search: Search
     show: Show
     trip: Trip
+    walker: Osrm
     ms: number
 }
 
@@ -37,6 +39,7 @@ const build = (net: Net, ms: number): Kit => ({
     search: new Search(new Nearby(net)),
     show: new Show(net, new Timetable(net)),
     trip: new Trip(new Direct(net)),
+    walker: new Osrm(),
     ms,
 })
 

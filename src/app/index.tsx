@@ -21,6 +21,7 @@ import { Rides } from '../ui/ride/list.tsx'
 import { type Row, Rows } from '../ui/rows.tsx'
 import { height, Sheet, type Snap } from '../ui/sheet.tsx'
 import { useTone } from '../ui/theme.ts'
+import { useWalk } from '../ui/walk.ts'
 
 type Mode = 'place' | 'line' | 'ride'
 
@@ -61,6 +62,8 @@ export default function Home() {
         [kit, ends, day, radius],
     )
     const lines = useMemo(() => (kit && mode === 'line' && q.trim() ? kit.find.run(q) : []), [kit, mode, q])
+    const origin = ride ? (ends.from?.point ?? null) : me.me
+    const walk = useWalk(kit?.walker ?? null, open ? origin : null, open ? (line.leg?.board?.stop.point ?? null) : null)
     const found = useMemo(() => (kit && place ? kit.search.run(place.point, day, radius) : null), [kit, place, day, radius])
 
     useEffect(() => {
@@ -201,6 +204,7 @@ export default function Home() {
                 me={me.me}
                 deg={me.deg}
                 onTap={tap}
+                walk={walk?.points ?? []}
             />
 
             <View style={[s.mark, { top: top + 12, backgroundColor: t.fg }]} pointerEvents="none">
@@ -222,6 +226,7 @@ export default function Home() {
                         geo={me.geo}
                         onLocate={ride ? undefined : me.start}
                         alarms={alarms}
+                        walk={walk}
                     />
                 ) : mode === 'place' && place ? (
                     <Near

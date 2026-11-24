@@ -26,6 +26,7 @@ type Props = {
     me?: Point | null
     deg?: number | null
     onTap?: (p: Point) => void
+    walk?: Point[]
 }
 
 const pair = (p: Point): [number, number] => [p.lon, p.lat]
@@ -47,7 +48,7 @@ const box = (pts: Point[]): [number, number, number, number] | null => {
     return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
-export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0, me = null, deg = null, onTap }: Props) {
+export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0, me = null, deg = null, onTap, walk = [] }: Props) {
     const t = useTone()
     const cam = useRef<CameraRef>(null)
     const shown = useMemo(() => ways.filter((w) => focus === null || w.dir === focus), [ways, focus])
@@ -86,6 +87,14 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
             features: places.map((p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pair(p) } })),
         }),
         [places],
+    )
+
+    const steps = useMemo<GeoJSON.FeatureCollection>(
+        () => ({
+            type: 'FeatureCollection',
+            features: walk.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: walk.map(pair) } }] : [],
+        }),
+        [walk],
     )
 
     const bounds = useMemo(() => {
@@ -157,6 +166,15 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
                         'line-offset': SIDE,
                         'line-opacity': focus === null ? 1 : ['match', ['get', 'dir'], focus, 1, DIM],
                     }}
+                />
+            </GeoJSONSource>
+
+            <GeoJSONSource id="walk" data={steps}>
+                <Layer
+                    id="walk"
+                    type="line"
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    paint={{ 'line-color': INK, 'line-width': 4, 'line-dasharray': [0.2, 1.8] }}
                 />
             </GeoJSONSource>
 

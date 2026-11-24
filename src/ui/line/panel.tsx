@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Place } from '../../domain/geo/place.ts'
+import type { Walk } from '../../domain/geo/walk.ts'
 import type { Stop } from '../../domain/transit/stop.ts'
 import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
@@ -28,11 +29,12 @@ type Props = {
     geo?: Geo
     onLocate?: () => void
     alarms?: Alarms
+    walk?: Walk | null
 }
 
 const LEAD = 5
 
-export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms }: Props) {
+export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms, walk = null }: Props) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
 
@@ -106,7 +108,9 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                     <Text style={[s.stop, { color: t.fg }]}>{named(leg.board.stop)}</Text>
                     {from && leg.board.meters > 0 && (
                         <Text style={[s.small, { color: t.mute }]}>
-                            {meters(leg.board.meters)} de {from} · {Math.max(1, Math.round(leg.board.meters / PACE))} min a pé
+                            {walk
+                                ? `${meters(walk.meters)} de ${from} · ${Math.max(1, Math.round(walk.seconds / 60))} min a pé`
+                                : `${meters(leg.board.meters)} de ${from} · ${Math.max(1, Math.round(leg.board.meters / PACE))} min a pé`}
                         </Text>
                     )}
 
