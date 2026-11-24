@@ -44,7 +44,8 @@ npx expo start --dev-client --localhost   # com o celular no cabo: adb reverse t
 ```
 
 Em máquina com pouca memória, limite o Gradle com `--max-workers=3`, `-Dorg.gradle.jvmargs=-Xmx3g` e
-`-Pkotlin.compiler.execution.strategy=in-process`.
+`-Pkotlin.compiler.execution.strategy=in-process`, e rode o build com `taskset -c 0-3`: a parte em C++ usa o
+ninja, que dispara um compilador por núcleo (mais dois) e sem esse limite pode esgotar a memória.
 
 ## Estrutura
 
