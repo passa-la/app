@@ -18,13 +18,23 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.passala.app"
+      "package": "com.passala.app",
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "scheme": "passala",
     "plugins": [
       "expo-router",
       "expo-asset",
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O passa l\u00e1? usa a sua localiza\u00e7\u00e3o pra mostrar onde voc\u00ea est\u00e1, a parada mais perto e o caminho a p\u00e9."
+        }
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
