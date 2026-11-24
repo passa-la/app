@@ -6,9 +6,11 @@ import type { Kit } from '../net.tsx'
 
 const TICK = 30000
 
-type Opts = { to?: Point | null; day: Day; onDay: (d: Day) => void }
+type Start = { stop: string | null; end: string | null }
 
-export const useLine = (kit: Kit | null, id: string | null, { to = null, day, onDay }: Opts) => {
+type Opts = { to?: Point | null; from?: Point | null; start?: Start | null; day: Day; onDay: (d: Day) => void }
+
+export const useLine = (kit: Kit | null, id: string | null, { to = null, from = null, start = null, day, onDay }: Opts) => {
     const [stop, setStop] = useState<string | null>(null)
     const [end, setEnd] = useState<string | null>(null)
     const [focus, setFocus] = useState<number | null>(null)
@@ -22,15 +24,15 @@ export const useLine = (kit: Kit | null, id: string | null, { to = null, day, on
     }, [])
 
     useEffect(() => {
-        setStop(null)
-        setEnd(null)
+        setStop(start?.stop ?? null)
+        setEnd(start?.end ?? null)
         setFocus(null)
         setTable(false)
-    }, [id])
+    }, [id, start])
 
     const detail = useMemo(
-        () => (kit && id ? kit.show.run(id, day, Moment.of(new Date(now)), { to, stop, end }) : null),
-        [kit, id, day, now, to, stop, end],
+        () => (kit && id ? kit.show.run(id, day, Moment.of(new Date(now)), { to, from, stop, end }) : null),
+        [kit, id, day, now, to, from, stop, end],
     )
 
     const dir = detail ? (focus ?? detail.plan.best ?? detail.ways[0]?.dir ?? 0) : null

@@ -3,6 +3,7 @@ import { BackHandler, FlatList, Keyboard, StyleSheet, Text, TextInput, useWindow
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Place } from '../domain/geo/place.ts'
 import { Day } from '../domain/transit/day.ts'
+import type { Ride } from '../domain/transit/ride.ts'
 import { Button } from '../ui/button.tsx'
 import { Code } from '../ui/code.tsx'
 import { LinePanel } from '../ui/line/panel.tsx'
@@ -11,14 +12,19 @@ import { Board } from '../ui/map/board.tsx'
 import { useNet } from '../ui/net.tsx'
 import { Near } from '../ui/place/near.tsx'
 import { usePlaces } from '../ui/place/use.ts'
+import { type End, Ends } from '../ui/ride/ends.tsx'
+import { Rides } from '../ui/ride/list.tsx'
 import { height, Sheet, type Snap } from '../ui/sheet.tsx'
 import { useTone } from '../ui/theme.ts'
 
-type Mode = 'place' | 'line'
+type Mode = 'place' | 'line' | 'ride'
+
+const MODES: Record<Mode, string> = { place: 'Lugar', line: 'Linha', ride: 'De → Para' }
 
 const HINTS: Record<Mode, string> = {
     place: 'Pra onde você vai? Ex.: Patteo Olinda',
     line: 'Ex.: 823 ou Jardim Brasil',
+    ride: '',
 }
 
 export default function Home() {
@@ -33,8 +39,19 @@ export default function Home() {
     const [day, setDay] = useState<Day>(() => Day.of(new Date()))
     const [open, setOpen] = useState<string | null>(null)
     const [snap, setSnap] = useState<Snap>('mid')
-    const line = useLine(kit, open, { to: place?.point ?? null, day, onDay: setDay })
-    const places = usePlaces(kit, mode === 'place' && !place ? q : '')
+    const [ends, setEnds] = useState<Record<End, Place | null>>({ from: null, to: null })
+    const [text, setText] = useState<Record<End, string>>({ from: '', to: '' })
+    const [field, setField] = useState<End>('from')
+    const [start, setStart] = useState<{ stop: string | null; end: string | null } | null>(null)
+    const ride = mode === 'ride'
+    const dest = ride ? ends.to : place
+    const typing = ride && text[field].trim().length >= 3 && text[field] !== ends[field]?.name
+    const line = useLine(kit, open, { to: dest?.point ?? null, from: ride ? (ends.from?.point ?? null) : null, start, day, onDay: setDay })
+    const places = usePlaces(kit, mode === 'place' && !place ? q : typing ? text[field] : '')
+    const rides = useMemo(
+        () => (kit && ends.from && ends.to ? kit.trip.run(ends.from.point, ends.to.point, day, radius) : []),
+        [kit, ends, day, radius],
+    )
     const lines = useMemo(() => (kit && mode === 'line' && q.trim() ? kit.find.run(q) : []), [kit, mode, q])
     const found = useMemo(() => (kit && place ? kit.search.run(place.point, day, radius) : null), [kit, place, day, radius])
 
@@ -58,8 +75,34 @@ export default function Home() {
 
     const openLine = (id: string) => {
         Keyboard.dismiss()
+        setStart(null)
         setOpen(id)
         setSnap('mid')
+    }
+
+    const openRide = (r: Ride) => {
+        Keyboard.dismiss()
+        setStart({ stop: r.board.stop.id, end: r.drop.stop.id })
+        setOpen(r.line.id)
+        setSnap('mid')
+    }
+
+    const pick = (p: Place) => {
+        const other: End = field === 'from' ? 'to' : 'from'
+        setEnds({ ...ends, [field]: p })
+        setText({ ...text, [field]: p.name })
+
+        if (!ends[other]) {
+            setField(other)
+        } else {
+            Keyboard.dismiss()
+            setSnap('mid')
+        }
+    }
+
+    const flip = () => {
+        setEnds({ from: ends.to, to: ends.from })
+        setText({ from: text.to, to: text.from })
     }
 
     const go = (p: Place) => {
@@ -83,11 +126,11 @@ export default function Home() {
                 ways={open ? (line.detail?.ways ?? []) : []}
                 focus={line.way?.dir ?? null}
                 board={line.leg?.board?.stop ?? null}
-                drop={line.end || place ? (line.leg?.drop?.stop ?? null) : null}
+                drop={line.end || dest ? (line.leg?.drop?.stop ?? null) : null}
                 onStop={line.tap}
                 bottom={height(snap === 'full' ? 'mid' : snap, screen)}
-                place={place?.point ?? null}
-                radius={place ? radius : 0}
+                places={(ride ? [ends.from, ends.to] : [place]).filter((x): x is Place => x !== null).map((x) => x.point)}
+                radius={radius}
             />
 
             <View style={[s.mark, { top: top + 12, backgroundColor: t.fg }]} pointerEvents="none">
@@ -98,8 +141,8 @@ export default function Home() {
 
             <Sheet snap={snap} onSnap={setSnap}>
                 {open && line.detail ? (
-                    <LinePanel state={line} dest={place} onClose={() => setOpen(null)} />
-                ) : place ? (
+                    <LinePanel state={line} dest={dest} onClose={() => setOpen(null)} />
+                ) : mode === 'place' && place ? (
                     <Near
                         place={place}
                         found={found}
@@ -114,13 +157,70 @@ export default function Home() {
                 ) : (
                     <View style={s.find}>
                         <View style={[s.modes, { backgroundColor: t.card, borderColor: t.edge }]}>
-                            {(['place', 'line'] as Mode[]).map((m) => (
+                            {(Object.keys(MODES) as Mode[]).map((m) => (
                                 <Button key={m} variant="chip" on={mode === m} onPress={() => swap(m)} style={s.mode}>
-                                    <Text style={[s.modeText, { color: mode === m ? t.paper : t.fg }]}>{m === 'place' ? 'Lugar' : 'Linha'}</Text>
+                                    <Text style={[s.modeText, { color: mode === m ? t.paper : t.fg }]}>{MODES[m]}</Text>
                                 </Button>
                             ))}
                         </View>
 
+                        {ride && (
+                            <Ends
+                                text={text}
+                                field={field}
+                                onText={(f, v) => setText({ ...text, [f]: v })}
+                                onField={(f) => {
+                                    setField(f)
+                                    setSnap('full')
+                                }}
+                                onSwap={flip}
+                            />
+                        )}
+
+                        {ride && typing && (
+                            <>
+                                {places.busy && note('Procurando lugares…')}
+                                {places.fail && note('Não deu pra buscar lugares agora. Confere a internet.', true)}
+                                {!places.busy && !places.fail && !places.list.length && note('Nenhum lugar com esse nome em Pernambuco.')}
+                                <FlatList
+                                    data={places.list}
+                                    keyExtractor={(p) => `${p.point.lat},${p.point.lon},${p.name}`}
+                                    keyboardShouldPersistTaps="handled"
+                                    ItemSeparatorComponent={() => <View style={[s.sep, { backgroundColor: t.edge }]} />}
+                                    renderItem={({ item }) => (
+                                        <Button variant="row" onPress={() => pick(item)}>
+                                            <View style={s.text}>
+                                                <Text style={[s.name, { color: t.fg }]} numberOfLines={1}>
+                                                    {item.name}
+                                                </Text>
+                                                {item.label !== '' && (
+                                                    <Text style={[s.label, { color: t.mute }]} numberOfLines={1}>
+                                                        {item.label}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        </Button>
+                                    )}
+                                />
+                            </>
+                        )}
+
+                        {ride && !typing && ends.from && ends.to && (
+                            <Rides
+                                rides={rides}
+                                path={`${ends.from.name} → ${ends.to.name}`}
+                                day={day}
+                                today={line.today}
+                                onDay={setDay}
+                                radius={radius}
+                                onRadius={setRadius}
+                                onRide={openRide}
+                            />
+                        )}
+
+                        {ride && !typing && (!ends.from || !ends.to) && note('Escolhe de onde você sai e pra onde vai: a gente mostra as linhas que levam direto, sem baldeação.')}
+
+                        {!ride && (
                         <TextInput
                             value={q}
                             onChangeText={setQ}
@@ -131,6 +231,7 @@ export default function Home() {
                             returnKeyType="search"
                             style={[s.field, { backgroundColor: t.card, borderColor: t.edge, color: t.fg }]}
                         />
+                        )}
 
                         {!kit && !fail && note('Abrindo as linhas…')}
                         {fail && note(`Não deu pra abrir as linhas: ${fail}`, true)}
@@ -185,7 +286,7 @@ export default function Home() {
                             </>
                         )}
 
-                        {kit && (
+                        {kit && !ride && (
                             <Text style={[s.foot, { color: t.mute }]}>
                                 {kit.net.lineCount()} linhas · feed {kit.net.feed}
                                 {__DEV__ ? ` · abriu em ${kit.ms} ms` : ''}

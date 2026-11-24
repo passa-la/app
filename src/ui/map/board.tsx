@@ -21,7 +21,7 @@ type Props = {
     drop: Stop | null
     onStop: (id: string) => void
     bottom?: number
-    place?: Point | null
+    places?: Point[]
     radius?: number
 }
 
@@ -44,7 +44,7 @@ const box = (pts: Point[]): [number, number, number, number] | null => {
     return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
-export function Board({ ways, focus, board, drop, onStop, bottom = 0, place = null, radius = 0 }: Props) {
+export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0 }: Props) {
     const t = useTone()
     const cam = useRef<CameraRef>(null)
     const shown = useMemo(() => ways.filter((w) => focus === null || w.dir === focus), [ways, focus])
@@ -73,30 +73,33 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, place = nu
     )
 
     const area = useMemo<GeoJSON.FeatureCollection>(
-        () => ({ type: 'FeatureCollection', features: place && radius ? [ring(place, radius)] : [] }),
-        [place, radius],
+        () => ({ type: 'FeatureCollection', features: radius ? places.map((p) => ring(p, radius)) : [] }),
+        [places, radius],
     )
 
     const pin = useMemo<GeoJSON.FeatureCollection>(
-        () => ({ type: 'FeatureCollection', features: place ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pair(place) } }] : [] }),
-        [place],
+        () => ({
+            type: 'FeatureCollection',
+            features: places.map((p) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pair(p) } })),
+        }),
+        [places],
     )
 
     const bounds = useMemo(() => {
         const line = shown.flatMap((w) => (w.points.length ? w.points : w.stops.map((s) => s.point)))
 
         if (line.length) {
-            return box(place ? [...line, place] : line)
+            return box([...line, ...places])
         }
 
-        if (place && radius) {
-            const c = (ring(place, radius).geometry as GeoJSON.Polygon).coordinates[0]
+        if (places.length && radius) {
+            const c = places.flatMap((p) => (ring(p, radius).geometry as GeoJSON.Polygon).coordinates[0])
 
             return box(c.map(([lon, lat]) => ({ lat, lon }) as Point))
         }
 
         return null
-    }, [shown, place, radius])
+    }, [shown, places, radius])
     const key = `${bounds?.join(',') ?? ''}|${bottom}`
     const pad = { top: EDGE + 40, right: EDGE, bottom: EDGE + bottom, left: EDGE }
 
