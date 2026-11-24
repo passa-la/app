@@ -1,0 +1,87 @@
+name: APK
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Testes
+        run: pnpm test
+
+      - name: Dados das linhas
+        run: pnpm data
+
+      - name: Versão a partir da tag
+        id: version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          IFS=. read -r major minor patch <<< "$v"
+          code=$((major * 10000 + minor * 100 + patch))
+          jq --arg v "$v" --argjson c "$code" '.expo.version = $v | .expo.android.versionCode = $c' app.json > app.tmp && mv app.tmp app.json
+          echo "name=$v" >> "$GITHUB_OUTPUT"
+          echo "Versão $v (versionCode $code)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Projeto Android
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Chave de assinatura
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: APK assinado
+        working-directory: android
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew app:assembleRelease --no-daemon \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/passa-la.apk"
+
+      - name: Conferir a assinatura
+        run: |
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$RUNNER_TEMP/passa-la.apk" | grep -E "Signer #1 certificate (DN|SHA-256)"
+
+      - name: Publicar o release
+        run: |
+          feed="$(jq -r .feed dist/net.json)"
+          size="$(du -m "$RUNNER_TEMP/passa-la.apk" | cut -f1)"
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/passa-la.apk" \
+            --title "passa lá? ${{ steps.version.outputs.name }}" \
+            --notes "APK pra Android (${size} MB), com a rede do Grande Recife do feed $feed. Instala, permite instalar de fontes desconhecidas se o Android pedir, e o app atualiza as linhas sozinho toda semana." \
+            --latest
+          echo "APK de ${size} MB publicado." >> "$GITHUB_STEP_SUMMARY"
