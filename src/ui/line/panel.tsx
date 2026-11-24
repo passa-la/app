@@ -4,6 +4,8 @@ import type { Stop } from '../../domain/transit/stop.ts'
 import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
+import type { Fav } from '../marks.ts'
+import { Nick } from '../nick.tsx'
 import { clock, DAYS, hours, label, wait } from '../format.ts'
 import { useTone } from '../theme.ts'
 import type { LineState } from './use.ts'
@@ -12,7 +14,16 @@ const named = (s: Stop) => s.name || `Parada ${s.id}`
 
 const PACE = 75
 
-export function LinePanel({ state, dest = null, onClose }: { state: LineState; dest?: Place | null; onClose: () => void }) {
+type Props = {
+    state: LineState
+    dest?: Place | null
+    fav?: Fav | null
+    onStar?: () => void
+    onNick?: (v: string) => void
+    onClose: () => void
+}
+
+export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose }: Props) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
 
@@ -34,10 +45,17 @@ export function LinePanel({ state, dest = null, onClose }: { state: LineState; d
                     <Text style={[s.name, { color: t.fg }]}>{d.line.name}</Text>
                     <Text style={[s.small, { color: t.mute }]}>{d.line.agency}</Text>
                 </View>
+                {onStar && (
+                    <Button variant="ghost" label={fav ? 'Tirar das favoritas' : 'Favoritar'} onPress={onStar}>
+                        <Text style={[s.close, { color: fav ? t.sun : t.fg }]}>{fav ? '★' : '☆'}</Text>
+                    </Button>
+                )}
                 <Button variant="ghost" label="Fechar linha" onPress={onClose}>
                     <Text style={[s.close, { color: t.fg }]}>✕</Text>
                 </Button>
             </View>
+
+            {fav && onNick && <Nick key={fav.id} value={fav.nick} hint="Ex.: trabalho, casa da vó" onChange={onNick} />}
 
             <Chips day={day} today={today} onDay={state.pick} runs={(k) => d.line.runs(k)} />
 

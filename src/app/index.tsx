@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BackHandler, FlatList, Keyboard, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Place } from '../domain/geo/place.ts'
 import { Day } from '../domain/transit/day.ts'
@@ -9,11 +9,13 @@ import { Code } from '../ui/code.tsx'
 import { LinePanel } from '../ui/line/panel.tsx'
 import { useLine } from '../ui/line/use.ts'
 import { Board } from '../ui/map/board.tsx'
+import { place as toPlace, type Spot, useMarks } from '../ui/marks.ts'
 import { useNet } from '../ui/net.tsx'
 import { Near } from '../ui/place/near.tsx'
 import { usePlaces } from '../ui/place/use.ts'
 import { type End, Ends } from '../ui/ride/ends.tsx'
 import { Rides } from '../ui/ride/list.tsx'
+import { type Row, Rows } from '../ui/rows.tsx'
 import { height, Sheet, type Snap } from '../ui/sheet.tsx'
 import { useTone } from '../ui/theme.ts'
 
@@ -43,6 +45,7 @@ export default function Home() {
     const [text, setText] = useState<Record<End, string>>({ from: '', to: '' })
     const [field, setField] = useState<End>('from')
     const [start, setStart] = useState<{ stop: string | null; end: string | null } | null>(null)
+    const marks = useMarks()
     const ride = mode === 'ride'
     const dest = ride ? ends.to : place
     const typing = ride && text[field].trim().length >= 3 && text[field] !== ends[field]?.name
@@ -73,11 +76,20 @@ export default function Home() {
         return () => sub.remove()
     }, [open, place])
 
+    const look = (id: string, ctx: string) => {
+        const l = kit?.net.find(id)
+
+        if (l) {
+            marks.look(l, ctx)
+        }
+    }
+
     const openLine = (id: string) => {
         Keyboard.dismiss()
         setStart(null)
         setOpen(id)
         setSnap('mid')
+        look(id, mode === 'place' && place ? `Perto de ${place.name}` : 'Busca por linha')
     }
 
     const openRide = (r: Ride) => {
@@ -85,7 +97,29 @@ export default function Home() {
         setStart({ stop: r.board.stop.id, end: r.drop.stop.id })
         setOpen(r.line.id)
         setSnap('mid')
+        look(r.line.id, `${ends.from?.name ?? ''} → ${ends.to?.name ?? ''}`)
     }
+
+    const spotRows = (on: (s: Spot) => void): Row[] =>
+        marks.spots.map((sp) => ({ key: `${sp.lat},${sp.lon}`, title: sp.nick || sp.name, note: sp.nick ? sp.name : sp.label, onPress: () => on(sp) }))
+
+    const favRows: Row[] = marks.favs.map((f) => ({
+        key: `f${f.id}`,
+        code: f.code,
+        title: f.nick || f.name,
+        note: f.nick ? f.name : undefined,
+        star: true,
+        onPress: () => openLine(f.id),
+    }))
+
+    const seenRows: Row[] = marks.seen.map((x) => ({
+        key: `s${x.id}`,
+        code: x.code,
+        title: x.name,
+        note: x.ctx,
+        star: !!marks.fav(x.id),
+        onPress: () => openLine(x.id),
+    }))
 
     const pick = (p: Place) => {
         const other: End = field === 'from' ? 'to' : 'from'
@@ -141,7 +175,14 @@ export default function Home() {
 
             <Sheet snap={snap} onSnap={setSnap}>
                 {open && line.detail ? (
-                    <LinePanel state={line} dest={dest} onClose={() => setOpen(null)} />
+                    <LinePanel
+                        state={line}
+                        dest={dest}
+                        fav={marks.fav(line.detail.line.id)}
+                        onStar={() => line.detail && marks.star(line.detail.line)}
+                        onNick={(v) => line.detail && marks.rename(line.detail.line.id, v)}
+                        onClose={() => setOpen(null)}
+                    />
                 ) : mode === 'place' && place ? (
                     <Near
                         place={place}
@@ -153,6 +194,9 @@ export default function Home() {
                         onRadius={setRadius}
                         onLine={openLine}
                         onClose={() => setPlace(null)}
+                        saved={marks.spot(place)}
+                        onSave={() => marks.save(place)}
+                        onNick={(v) => marks.label(place, v)}
                     />
                 ) : (
                     <View style={s.find}>
@@ -218,6 +262,8 @@ export default function Home() {
                             />
                         )}
 
+                        {ride && !typing && text[field] === '' && <Rows head="Lugares salvos" rows={spotRows((sp) => pick(toPlace(sp)))} />}
+
                         {ride && !typing && (!ends.from || !ends.to) && note('Escolhe de onde você sai e pra onde vai: a gente mostra as linhas que levam direto, sem baldeação.')}
 
                         {!ride && (
@@ -239,6 +285,13 @@ export default function Home() {
                         {kit && mode === 'place' && (
                             <>
                                 {q.trim().length < 3 && note('Digita pra onde você vai e a gente mostra os ônibus que passam a até 1 km de lá.')}
+                                {q.trim() === '' && (
+                                    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.lists}>
+                                        <Rows head="Lugares salvos" rows={spotRows((sp) => go(toPlace(sp)))} />
+                                        <Rows head="Favoritas" rows={favRows} />
+                                        <Rows head="Ônibus recentes" rows={seenRows} />
+                                    </ScrollView>
+                                )}
                                 {places.busy && note('Procurando lugares…')}
                                 {places.fail && note('Não deu pra buscar lugares agora. Confere a internet.', true)}
                                 {!places.busy && !places.fail && q.trim().length >= 3 && !places.list.length && note('Nenhum lugar com esse nome em Pernambuco.')}
@@ -268,6 +321,12 @@ export default function Home() {
                         {kit && mode === 'line' && (
                             <>
                                 {q.trim() === '' && note('Digita o número ou o nome da linha.')}
+                                {q.trim() === '' && (
+                                    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.lists}>
+                                        <Rows head="Favoritas" rows={favRows} />
+                                        <Rows head="Ônibus recentes" rows={seenRows} />
+                                    </ScrollView>
+                                )}
                                 {q.trim() !== '' && !lines.length && note('Nenhuma linha com esse número ou nome.')}
                                 <FlatList
                                     data={lines}
@@ -314,4 +373,5 @@ const s = StyleSheet.create({
     name: { fontSize: 16 },
     label: { fontSize: 13 },
     foot: { fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+    lists: { gap: 12, paddingBottom: 24 },
 })

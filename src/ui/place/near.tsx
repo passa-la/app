@@ -6,6 +6,8 @@ import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
 import { DAYS } from '../format.ts'
+import type { Spot } from '../marks.ts'
+import { Nick } from '../nick.tsx'
 import { useTone } from '../theme.ts'
 
 type Props = {
@@ -18,9 +20,12 @@ type Props = {
     onRadius: (m: number) => void
     onLine: (id: string) => void
     onClose: () => void
+    saved: Spot | null
+    onSave: () => void
+    onNick: (v: string) => void
 }
 
-export function Near({ place, found, day, today, onDay, radius, onRadius, onLine, onClose }: Props) {
+export function Near({ place, found, day, today, onDay, radius, onRadius, onLine, onClose, saved, onSave, onNick }: Props) {
     const t = useTone()
     const when = DAYS[day].when
     const n = found?.passes.length ?? 0
@@ -42,10 +47,15 @@ export function Near({ place, found, day, today, onDay, radius, onRadius, onLine
                     </Text>
                     {place.label !== '' && <Text style={[s.small, { color: t.mute }]}>{place.label}</Text>}
                 </View>
+                <Button variant="ghost" label={saved ? 'Tirar dos lugares salvos' : 'Salvar lugar'} onPress={onSave}>
+                    <Text style={[s.close, { color: saved ? t.sun : t.fg }]}>{saved ? '★' : '☆'}</Text>
+                </Button>
                 <Button variant="ghost" label="Trocar o destino" onPress={onClose}>
                     <Text style={[s.close, { color: t.fg }]}>✕</Text>
                 </Button>
             </View>
+
+            {saved && <Nick key={`${saved.lat},${saved.lon}`} value={saved.nick} hint="Ex.: casa, trabalho" onChange={onNick} />}
 
             <Chips day={day} today={today} onDay={onDay} radius={radius} onRadius={onRadius} />
 
