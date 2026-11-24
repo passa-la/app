@@ -4,6 +4,7 @@ import type { Stop } from '../../domain/transit/stop.ts'
 import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
+import { Icon } from '../icon.tsx'
 import type { Alarms } from '../alarms.ts'
 import type { Fav } from '../marks.ts'
 import type { Geo } from '../me.ts'
@@ -55,11 +56,11 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                 </View>
                 {onStar && (
                     <Button variant="ghost" label={fav ? 'Tirar das favoritas' : 'Favoritar'} onPress={onStar}>
-                        <Text style={[s.close, { color: fav ? t.sun : t.fg }]}>{fav ? '★' : '☆'}</Text>
+                        <Icon name={fav ? 'star' : 'star-outline'} color={fav ? t.sun : t.fg} size={22} />
                     </Button>
                 )}
                 <Button variant="ghost" label="Fechar linha" onPress={onClose}>
-                    <Text style={[s.close, { color: t.fg }]}>✕</Text>
+                    <Icon name="close" color={t.fg} size={22} />
                 </Button>
             </View>
 
@@ -236,7 +237,6 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
 const s = StyleSheet.create({
     body: { gap: 14, paddingBottom: 48 },
     head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    close: { fontSize: 18 },
     title: { flex: 1, gap: 2 },
     name: { fontSize: 20, fontWeight: '600' },
     small: { fontSize: 14 },

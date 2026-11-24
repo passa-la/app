@@ -5,6 +5,7 @@ import type { Found } from '../../domain/transit/found.ts'
 import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
+import { Icon } from '../icon.tsx'
 import { DAYS } from '../format.ts'
 import type { Spot } from '../marks.ts'
 import { Nick } from '../nick.tsx'
@@ -48,10 +49,10 @@ export function Near({ place, found, day, today, onDay, radius, onRadius, onLine
                     {place.label !== '' && <Text style={[s.small, { color: t.mute }]}>{place.label}</Text>}
                 </View>
                 <Button variant="ghost" label={saved ? 'Tirar dos lugares salvos' : 'Salvar lugar'} onPress={onSave}>
-                    <Text style={[s.close, { color: saved ? t.sun : t.fg }]}>{saved ? '★' : '☆'}</Text>
+                    <Icon name={saved ? 'star' : 'star-outline'} color={saved ? t.sun : t.fg} size={22} />
                 </Button>
                 <Button variant="ghost" label="Trocar o destino" onPress={onClose}>
-                    <Text style={[s.close, { color: t.fg }]}>✕</Text>
+                    <Icon name="close" color={t.fg} size={22} />
                 </Button>
             </View>
 
@@ -90,6 +91,5 @@ const s = StyleSheet.create({
     name: { fontSize: 20, fontWeight: '600' },
     line: { fontSize: 16 },
     small: { fontSize: 14 },
-    close: { fontSize: 18 },
     sep: { height: StyleSheet.hairlineWidth },
 })

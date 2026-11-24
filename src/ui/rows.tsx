@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { Button } from './button.tsx'
 import { Code } from './code.tsx'
+import { Icon } from './icon.tsx'
 import { useTone } from './theme.ts'
 
 export type Row = { key: string; code?: string; title: string; note?: string; star?: boolean; onPress: () => void }
@@ -30,7 +31,7 @@ export function Rows({ head, rows }: { head?: string; rows: Row[] }) {
                                 </Text>
                             ) : null}
                         </View>
-                        {r.star && <Text style={{ color: t.sun, fontSize: 18 }}>★</Text>}
+                        {r.star && <Icon name="star" color={t.sun} size={18} />}
                     </Button>
                 </View>
             ))}
