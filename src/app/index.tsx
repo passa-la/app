@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import type { Place } from '../domain/geo/place.ts'
+import { Place } from '../domain/geo/place.ts'
+import type { Point } from '../domain/geo/point.ts'
 import { Day } from '../domain/transit/day.ts'
 import type { Ride } from '../domain/transit/ride.ts'
+import { useAlarms } from '../ui/alarms.ts'
 import { Button } from '../ui/button.tsx'
 import { Code } from '../ui/code.tsx'
 import { LinePanel } from '../ui/line/panel.tsx'
 import { useLine } from '../ui/line/use.ts'
 import { Board } from '../ui/map/board.tsx'
 import { place as toPlace, type Spot, useMarks } from '../ui/marks.ts'
+import { useMe } from '../ui/me.ts'
 import { useNet } from '../ui/net.tsx'
 import { Near } from '../ui/place/near.tsx'
 import { usePlaces } from '../ui/place/use.ts'
@@ -46,10 +49,12 @@ export default function Home() {
     const [field, setField] = useState<End>('from')
     const [start, setStart] = useState<{ stop: string | null; end: string | null } | null>(null)
     const marks = useMarks()
+    const me = useMe()
+    const alarms = useAlarms()
     const ride = mode === 'ride'
     const dest = ride ? ends.to : place
     const typing = ride && text[field].trim().length >= 3 && text[field] !== ends[field]?.name
-    const line = useLine(kit, open, { to: dest?.point ?? null, from: ride ? (ends.from?.point ?? null) : null, start, day, onDay: setDay })
+    const line = useLine(kit, open, { to: dest?.point ?? null, from: ride ? (ends.from?.point ?? null) : me.me, start, day, onDay: setDay })
     const places = usePlaces(kit, mode === 'place' && !place ? q : typing ? text[field] : '')
     const rides = useMemo(
         () => (kit && ends.from && ends.to ? kit.trip.run(ends.from.point, ends.to.point, day, radius) : []),
@@ -134,6 +139,34 @@ export default function Home() {
         }
     }
 
+    const tap = (p: Point) => {
+        if (open || mode === 'line') {
+            return
+        }
+
+        const spot = new Place('Ponto no mapa', '', p)
+        const set = (x: Place) => (ride ? pick(x) : go(x))
+        set(spot)
+
+        kit?.lookup
+            .name(p)
+            .then((named) => {
+                if (named) {
+                    ride ? setEnds((e) => ({ ...e, [field]: named })) : setPlace((old) => (old === spot ? named : old))
+                    ride && setText((x) => ({ ...x, [field]: named.name }))
+                }
+            })
+            .catch(() => {})
+    }
+
+    const here = () => {
+        if (me.me) {
+            pick(new Place('Minha localização', '', me.me))
+        } else {
+            me.start()
+        }
+    }
+
     const flip = () => {
         setEnds({ from: ends.to, to: ends.from })
         setText({ from: text.to, to: text.from })
@@ -165,6 +198,9 @@ export default function Home() {
                 bottom={height(snap === 'full' ? 'mid' : snap, screen)}
                 places={(ride ? [ends.from, ends.to] : [place]).filter((x): x is Place => x !== null).map((x) => x.point)}
                 radius={radius}
+                me={me.me}
+                deg={me.deg}
+                onTap={tap}
             />
 
             <View style={[s.mark, { top: top + 12, backgroundColor: t.fg }]} pointerEvents="none">
@@ -182,6 +218,10 @@ export default function Home() {
                         onStar={() => line.detail && marks.star(line.detail.line)}
                         onNick={(v) => line.detail && marks.rename(line.detail.line.id, v)}
                         onClose={() => setOpen(null)}
+                        from={ride ? (ends.from?.name ?? null) : me.me ? 'você' : null}
+                        geo={me.geo}
+                        onLocate={ride ? undefined : me.start}
+                        alarms={alarms}
                     />
                 ) : mode === 'place' && place ? (
                     <Near
@@ -262,7 +302,17 @@ export default function Home() {
                             />
                         )}
 
-                        {ride && !typing && text[field] === '' && <Rows head="Lugares salvos" rows={spotRows((sp) => pick(toPlace(sp)))} />}
+                        {ride && !typing && text[field] === '' && (
+                            <Rows
+                                head="Sugestões"
+                                rows={[
+                                    ...(field === 'from'
+                                        ? [{ key: 'here', title: 'Minha localização', note: me.me ? undefined : 'Toca pra ligar a localização', onPress: here }]
+                                        : []),
+                                    ...spotRows((sp) => pick(toPlace(sp))),
+                                ]}
+                            />
+                        )}
 
                         {ride && !typing && (!ends.from || !ends.to) && note('Escolhe de onde você sai e pra onde vai: a gente mostra as linhas que levam direto, sem baldeação.')}
 
@@ -284,7 +334,7 @@ export default function Home() {
 
                         {kit && mode === 'place' && (
                             <>
-                                {q.trim().length < 3 && note('Digita pra onde você vai e a gente mostra os ônibus que passam a até 1 km de lá.')}
+                                {q.trim().length < 3 && note('Digita pra onde você vai, ou toca no mapa, e a gente mostra os ônibus que passam a até 1 km de lá.')}
                                 {q.trim() === '' && (
                                     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.lists}>
                                         <Rows head="Lugares salvos" rows={spotRows((sp) => go(toPlace(sp)))} />

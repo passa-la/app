@@ -1,7 +1,7 @@
-import { Camera, type CameraRef, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native'
+import { Camera, type CameraRef, GeoJSONSource, Layer, Map, ViewAnnotation } from '@maplibre/maplibre-react-native'
 import { useEffect, useMemo, useRef } from 'react'
-import { StyleSheet } from 'react-native'
-import type { Point } from '../../domain/geo/point.ts'
+import { StyleSheet, View } from 'react-native'
+import { Point } from '../../domain/geo/point.ts'
 import type { Stop } from '../../domain/transit/stop.ts'
 import type { Way } from '../../domain/transit/way.ts'
 import { ring } from './shape.ts'
@@ -23,6 +23,9 @@ type Props = {
     bottom?: number
     places?: Point[]
     radius?: number
+    me?: Point | null
+    deg?: number | null
+    onTap?: (p: Point) => void
 }
 
 const pair = (p: Point): [number, number] => [p.lon, p.lat]
@@ -44,7 +47,7 @@ const box = (pts: Point[]): [number, number, number, number] | null => {
     return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
-export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0 }: Props) {
+export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [], radius = 0, me = null, deg = null, onTap }: Props) {
     const t = useTone()
     const cam = useRef<CameraRef>(null)
     const shown = useMemo(() => ways.filter((w) => focus === null || w.dir === focus), [ways, focus])
@@ -89,7 +92,7 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
         const line = shown.flatMap((w) => (w.points.length ? w.points : w.stops.map((s) => s.point)))
 
         if (line.length) {
-            return box([...line, ...places])
+            return box([...line, ...places, ...(me ? [me] : [])])
         }
 
         if (places.length && radius) {
@@ -112,7 +115,19 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
     const round = { 'line-cap': 'round', 'line-join': 'round' } as const
 
     return (
-        <Map style={s.map} mapStyle={STYLE} logo={false} compass={false}>
+        <Map
+            style={s.map}
+            mapStyle={STYLE}
+            logo={false}
+            compass={false}
+            touchRotate={false}
+            touchPitch={false}
+            onPress={(e) => {
+                const [lon, lat] = e.nativeEvent.lngLat
+
+                onTap?.(new Point(lat, lon))
+            }}
+        >
             <Camera ref={cam} initialViewState={bounds ? { bounds, padding: pad } : { center: HUB, zoom: 11 }} />
 
             <GeoJSONSource id="area" data={area}>
@@ -152,6 +167,7 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
                     const id = e.nativeEvent.features[0]?.properties?.id
 
                     if (id !== undefined) {
+                        e.stopPropagation()
                         onStop(String(id))
                     }
                 }}
@@ -186,10 +202,36 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
                     paint={{ 'circle-radius': 9, 'circle-color': '#ffffff', 'circle-stroke-color': INK, 'circle-stroke-width': 4.5 }}
                 />
             </GeoJSONSource>
+
+            {me && (
+                <ViewAnnotation id="me" lngLat={pair(me)} anchor="center">
+                    <View style={s.me} pointerEvents="none">
+                        {deg !== null && (
+                            <View style={[s.fan, { transform: [{ rotate: `${deg}deg` }] }]}>
+                                <View style={[s.cone, { borderBottomColor: t.sun }]} />
+                            </View>
+                        )}
+                        <View style={s.you} />
+                    </View>
+                </ViewAnnotation>
+            )}
         </Map>
     )
 }
 
 const s = StyleSheet.create({
     map: { flex: 1 },
+    me: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+    fan: { position: 'absolute', width: 120, height: 120, alignItems: 'center' },
+    cone: {
+        width: 0,
+        height: 0,
+        borderLeftWidth: 26,
+        borderRightWidth: 26,
+        borderBottomWidth: 60,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        opacity: 0.55,
+    },
+    you: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#17150f', borderWidth: 3, borderColor: '#ffffff' },
 })

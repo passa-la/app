@@ -4,7 +4,9 @@ import type { Stop } from '../../domain/transit/stop.ts'
 import { Button } from '../button.tsx'
 import { Chips, meters } from '../chips.tsx'
 import { Code } from '../code.tsx'
+import type { Alarms } from '../alarms.ts'
 import type { Fav } from '../marks.ts'
+import type { Geo } from '../me.ts'
 import { Nick } from '../nick.tsx'
 import { clock, DAYS, hours, label, wait } from '../format.ts'
 import { useTone } from '../theme.ts'
@@ -21,9 +23,15 @@ type Props = {
     onStar?: () => void
     onNick?: (v: string) => void
     onClose: () => void
+    from?: string | null
+    geo?: Geo
+    onLocate?: () => void
+    alarms?: Alarms
 }
 
-export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose }: Props) {
+const LEAD = 5
+
+export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms }: Props) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
 
@@ -72,6 +80,21 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                 </View>
             )}
 
+            {onLocate && geo !== 'on' && d.ways.length > 0 && (
+                <View style={[s.card, s.ask, { backgroundColor: t.card, borderColor: t.edge }]}>
+                    <Text style={[s.small, s.grow, { color: t.fg }]}>
+                        {geo === 'denied'
+                            ? 'Sua localização está bloqueada. Libera nas configurações do Android pra ver onde pegar.'
+                            : 'Liga sua localização pra ver onde pegar e o caminho a pé.'}
+                    </Text>
+                    {geo !== 'denied' && (
+                        <Button onPress={onLocate} disabled={geo === 'busy'}>
+                            <Text style={[s.small, { color: t.sunInk, fontWeight: '600' }]}>Usar</Text>
+                        </Button>
+                    )}
+                </View>
+            )}
+
             {d.ways.length > 0 && !leg?.board && (
                 <Text style={[s.dash, { color: t.mute, borderColor: t.edge }]}>Toca numa parada no mapa ou na lista pra ver a que horas o ônibus passa nela.</Text>
             )}
@@ -80,6 +103,11 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                 <View style={[s.card, { backgroundColor: t.card, borderColor: t.edge }]}>
                     <Text style={[s.over, { color: t.mute }]}>ONDE PEGAR · {label(leg.dir).toUpperCase()}</Text>
                     <Text style={[s.stop, { color: t.fg }]}>{named(leg.board.stop)}</Text>
+                    {from && leg.board.meters > 0 && (
+                        <Text style={[s.small, { color: t.mute }]}>
+                            {meters(leg.board.meters)} de {from} · {Math.max(1, Math.round(leg.board.meters / PACE))} min a pé
+                        </Text>
+                    )}
 
                     {d.ways.length > 1 && leg.drop && !leg.fits() && (
                         <Text style={[s.small, { color: t.alert }]}>
@@ -95,15 +123,40 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                                     {!soon.length && tab.all.length > 0 && (
                                         <Text style={[s.small, { color: t.mute }]}>Nenhum ônibus passa mais hoje nessa parada.</Text>
                                     )}
-                                    {soon.map((b, i) => (
-                                        <View key={i} style={s.next}>
-                                            <Text style={{ color: t.fg }}>
-                                                <Text style={s.at}>{clock(b.at)}</Text>
-                                                {b.end !== null && <Text style={{ color: t.mute }}>{`  → chega ${clock(b.end)}`}</Text>}
-                                            </Text>
-                                            <Text style={[s.small, { color: t.mute }]}>{wait(tab.wait(b))}</Text>
-                                        </View>
-                                    ))}
+                                    {soon.map((b, i) => {
+                                        const k = `${d.line.id}|${leg.board?.stop.id}|${b.at}`
+                                        const left = tab.wait(b)
+                                        const on = alarms?.has(k) ?? false
+
+                                        return (
+                                            <View key={i} style={s.next}>
+                                                <Text style={[s.grow, { color: t.fg }]}>
+                                                    <Text style={s.at}>{clock(b.at)}</Text>
+                                                    {b.end !== null && <Text style={{ color: t.mute }}>{`  → chega ${clock(b.end)}`}</Text>}
+                                                </Text>
+                                                <Text style={[s.small, { color: t.mute }]}>{wait(left)}</Text>
+                                                {alarms && left > LEAD && (
+                                                    <Button
+                                                        variant="chip"
+                                                        on={on}
+                                                        label={on ? 'Cancelar aviso' : `Avisar ${LEAD} min antes`}
+                                                        onPress={() =>
+                                                            alarms.toggle(
+                                                                k,
+                                                                new Date(Date.now() + (b.at - tab.now - LEAD * 60) * 1000),
+                                                                `${d.line.code} passa em ${LEAD} min`,
+                                                                `${named(leg.board!.stop)} às ${clock(b.at)}${b.end !== null ? ` · chega ~${clock(b.end)}` : ''}`,
+                                                            )
+                                                        }
+                                                        style={s.bell}
+                                                    >
+                                                        <Text style={{ fontSize: 14 }}>{on ? '🔔' : '🔕'}</Text>
+                                                    </Button>
+                                                )}
+                                            </View>
+                                        )
+                                    })}
+                                    {alarms?.fail && <Text style={[s.small, { color: t.alert }]}>{alarms.fail}</Text>}
                                 </>
                             )}
 
@@ -197,7 +250,10 @@ const s = StyleSheet.create({
     over: { fontSize: 12, fontWeight: '500', letterSpacing: 0.6 },
     stop: { fontSize: 16, fontWeight: '600' },
     times: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6, paddingTop: 10, gap: 6 },
-    next: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+    next: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    grow: { flex: 1 },
+    ask: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    bell: { paddingHorizontal: 8, paddingVertical: 4 },
     at: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
     left: { alignSelf: 'flex-start', marginLeft: -12 },
     hour: { flexDirection: 'row', gap: 14 },
