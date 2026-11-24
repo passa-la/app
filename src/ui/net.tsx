@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
 import { Find } from '../cases/find.ts'
+import { Lookup } from '../cases/lookup.ts'
 import { Search } from '../cases/search.ts'
 import { Show } from '../cases/show.ts'
 import { Trip } from '../cases/trip.ts'
@@ -8,11 +9,14 @@ import { Net } from '../data/net.ts'
 import { Direct } from '../domain/transit/direct.ts'
 import { Nearby } from '../domain/transit/nearby.ts'
 import { Timetable } from '../domain/transit/timetable.ts'
+import { area } from '../infra/area.ts'
 import { bundled } from '../infra/bundle.ts'
+import { Photon } from '../infra/photon.ts'
 
 export type Kit = {
     net: Net
     find: Find
+    lookup: Lookup
     search: Search
     show: Show
     trip: Trip
@@ -26,6 +30,7 @@ const Ctx = createContext<State>({ kit: null, fail: null })
 const build = (net: Net, ms: number): Kit => ({
     net,
     find: new Find(net),
+    lookup: new Lookup(new Photon(), area),
     search: new Search(new Nearby(net)),
     show: new Show(net, new Timetable(net)),
     trip: new Trip(new Direct(net)),
