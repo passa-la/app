@@ -177,6 +177,26 @@ export function Board({ ways, focus, board, drop, onStop, bottom = 0, places = [
                         'line-opacity': focus === null ? 1 : ['match', ['get', 'dir'], focus, 1, DIM],
                     }}
                 />
+                <Layer
+                    id="path-arrow"
+                    type="symbol"
+                    layout={{
+                        'symbol-placement': 'line',
+                        'symbol-spacing': 70,
+                        'text-field': '›',
+                        'text-font': ['Noto Sans Bold'],
+                        'text-size': 22,
+                        'text-keep-upright': false,
+                        'text-rotation-alignment': 'map',
+                        'text-allow-overlap': true,
+                    }}
+                    paint={{
+                        'text-color': INK,
+                        'text-halo-color': ['match', ['get', 'dir'], 1, t.back, t.sun],
+                        'text-halo-width': 1,
+                        'text-opacity': focus === null ? 1 : ['match', ['get', 'dir'], focus, 1, DIM],
+                    }}
+                />
             </GeoJSONSource>
 
             <GeoJSONSource id="walk" data={steps}>
