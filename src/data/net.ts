@@ -101,6 +101,12 @@ export class Net implements Lines, Schedule {
         return ids.map((id) => this.find(id)).filter((l): l is Line => l !== null)
     }
 
+    stop(id: string): Stop | null {
+        const i = this.stopIx.get(id)
+
+        return i === undefined ? null : this.stops[i]
+    }
+
     find(id: string): Line | null {
         const i = this.lineIx.get(id)
 

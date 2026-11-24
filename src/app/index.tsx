@@ -7,8 +7,13 @@ import { Day } from '../domain/transit/day.ts'
 import type { Ride } from '../domain/transit/ride.ts'
 import { type Alert, useAlarms } from '../ui/alarms.ts'
 import { Alerts, Bell } from '../ui/alerts.tsx'
+import { Bar } from '../ui/routine/bar.tsx'
+import type { Seed } from '../ui/routine/editor.tsx'
+import { Plans } from '../ui/routine/list.tsx'
+import { useRoutines } from '../ui/routine/use.ts'
 import { Button } from '../ui/button.tsx'
 import { Code } from '../ui/code.tsx'
+import { Icon } from '../ui/icon.tsx'
 import { LinePanel } from '../ui/line/panel.tsx'
 import { useLine } from '../ui/line/use.ts'
 import { Board } from '../ui/map/board.tsx'
@@ -59,6 +64,12 @@ export default function Home() {
     const me = useMe()
     const alarms = useAlarms()
     const [bells, setBells] = useState(false)
+    const [now, setNow] = useState(() => Date.now())
+    const [plans, setPlans] = useState(false)
+    const [seed, setSeed] = useState<Seed>({})
+    const [draft, setDraft] = useState<Seed | null>(null)
+    const [picking, setPicking] = useState<Seed | null>(null)
+    const routines = useRoutines(kit, now, me.me)
     const ride = mode === 'ride'
     const dest = ride ? ends.to : place
     const typing = ride && text[field].trim().length >= 3 && text[field] !== ends[field]?.name
@@ -105,6 +116,12 @@ export default function Home() {
             sub.remove()
             clearTimeout(timer)
         }
+    }, [])
+
+    useEffect(() => {
+        const i = setInterval(() => setNow(Date.now()), 30000)
+
+        return () => clearInterval(i)
     }, [])
 
     const ahead = useRef(alarms.all)
@@ -176,6 +193,45 @@ export default function Home() {
         setOpen(r.line.id)
         setSnap('mid')
         look(r.line.id, `${ends.from?.name ?? ''} → ${ends.to?.name ?? ''}`)
+    }
+
+    const plan = (from: Seed) => {
+        setSeed(from)
+        setDraft(from.line && from.stop && from.end ? from : null)
+        setPlans(true)
+    }
+
+    const pickOnMap = (sd: Seed) => {
+        if (!sd.line) {
+            return
+        }
+
+        setPlans(false)
+        setDraft(null)
+        setPicking(sd)
+        setStart({ stop: null, end: null })
+        setOpen(sd.line)
+        setSnap('peek')
+    }
+
+    const unpick = () => {
+        setDraft(picking)
+        setPicking(null)
+        setPlans(true)
+    }
+
+    useEffect(() => {
+        if (picking && line.stop && line.end && line.leg?.fits()) {
+            setDraft({ ...picking, dir: line.way?.dir ?? picking.dir ?? null, stop: line.stop, end: line.end })
+            setPicking(null)
+            setPlans(true)
+        }
+    }, [picking, line.stop, line.end])
+
+    const follow = (r: { line: string; stop: string; end: string }) => {
+        setStart({ stop: r.stop, end: r.end })
+        setOpen(r.line)
+        setSnap('mid')
     }
 
     const openAlert = (a: Alert) => {
@@ -293,7 +349,37 @@ export default function Home() {
 
             <View style={[s.tools, { top: top + 12 }]}>
                 {alarms.all.length > 0 && <Bell count={alarms.all.length} onPress={() => setBells(true)} />}
+                <Button label="Rotinas" onPress={() => plan(open && line.detail ? { line: line.detail.line.id, dir: line.way?.dir ?? null } : {})} style={s.tool}>
+                    <Icon name="calendar-clock" color={t.sunInk} size={18} />
+                    {routines.all.length > 0 && <Text style={[s.toolCount, { color: t.sunInk }]}>{routines.all.length}</Text>}
+                </Button>
             </View>
+
+            {picking && (
+                <View style={[s.pick, { top: top + 64 }]} pointerEvents="box-none">
+                    <View style={[s.pickBar, { backgroundColor: t.fg }]}>
+                        <Text style={[s.pickText, { color: t.paper }]}>
+                            {!line.stop ? 'Toque na parada onde você pega' : 'Agora toque na parada onde você desce'}
+                        </Text>
+                        <Button variant="chip" onPress={unpick}>
+                            <Text style={{ color: t.fg, fontSize: 13 }}>Cancelar</Text>
+                        </Button>
+                    </View>
+                </View>
+            )}
+
+            {routines.live && !picking && (
+                <Bar
+                    live={routines.live}
+                    next={routines.next}
+                    now={now}
+                    top={top + 64}
+                    onOpen={() => routines.live && follow(routines.live.routine)}
+                    onDone={() => routines.live && routines.finish(routines.live.key)}
+                />
+            )}
+
+            <Plans open={plans} kit={kit} routines={routines} seed={seed} draft={draft} onDraft={() => setDraft(null)} onMap={pickOnMap} onClose={() => setPlans(false)} />
 
             <Alerts open={bells} alerts={alarms.all} onClose={() => setBells(false)} onLine={openAlert} onCancel={alarms.cancel} />
 
@@ -311,6 +397,14 @@ export default function Home() {
                         onLocate={ride ? undefined : me.start}
                         alarms={alarms}
                         walk={walk}
+                        onRoutine={() =>
+                            plan({
+                                line: line.detail?.line.id ?? null,
+                                dir: line.way?.dir ?? null,
+                                stop: line.leg?.board?.stop.id ?? null,
+                                end: line.end || dest ? (line.leg?.drop?.stop.id ?? null) : null,
+                            })
+                        }
                     />
                 ) : mode === 'place' && place ? (
                     <Near
@@ -514,4 +608,9 @@ const s = StyleSheet.create({
     foot: { fontSize: 12, textAlign: 'center', paddingVertical: 8 },
     lists: { gap: 12, paddingBottom: 24 },
     tools: { position: 'absolute', right: 16, flexDirection: 'row', gap: 8 },
+    pick: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: 12 },
+    pickBar: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 999, paddingLeft: 16, paddingRight: 8, paddingVertical: 8, elevation: 8, maxWidth: 520, width: '100%' },
+    pickText: { flex: 1, fontSize: 15, fontWeight: '600' },
+    tool: { paddingHorizontal: 12, paddingVertical: 8, elevation: 6 },
+    toolCount: { fontSize: 15, fontWeight: '700' },
 })

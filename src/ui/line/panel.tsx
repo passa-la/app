@@ -32,9 +32,10 @@ type Props = {
     onLocate?: () => void
     alarms?: Alarms
     walk?: Walk | null
+    onRoutine?: () => void
 }
 
-export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms, walk = null }: Props) {
+export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms, walk = null, onRoutine }: Props) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
     const [ask, setAsk] = useState<string | null>(null)
@@ -57,6 +58,11 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                     <Text style={[s.name, { color: t.fg }]}>{d.line.name}</Text>
                     <Text style={[s.small, { color: t.mute }]}>{d.line.agency}</Text>
                 </View>
+                {onRoutine && (
+                    <Button variant="ghost" label="Rotinas" onPress={onRoutine}>
+                        <Icon name="calendar-clock" color={t.fg} size={22} />
+                    </Button>
+                )}
                 {onStar && (
                     <Button variant="ghost" label={fav ? 'Tirar das favoritas' : 'Favoritar'} onPress={onStar}>
                         <Icon name={fav ? 'star' : 'star-outline'} color={fav ? t.sun : t.fg} size={22} />
