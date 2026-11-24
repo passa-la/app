@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
-import { BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AppState, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Place } from '../domain/geo/place.ts'
 import type { Point } from '../domain/geo/point.ts'
 import { Day } from '../domain/transit/day.ts'
 import type { Ride } from '../domain/transit/ride.ts'
-import { useAlarms } from '../ui/alarms.ts'
+import { type Alert, useAlarms } from '../ui/alarms.ts'
+import { Alerts, Bell } from '../ui/alerts.tsx'
 import { Button } from '../ui/button.tsx'
 import { Code } from '../ui/code.tsx'
 import { LinePanel } from '../ui/line/panel.tsx'
@@ -22,8 +23,13 @@ import { type Row, Rows } from '../ui/rows.tsx'
 import { height, Sheet, type Snap } from '../ui/sheet.tsx'
 import { useTone } from '../ui/theme.ts'
 import { useWalk } from '../ui/walk.ts'
+import { countdown } from '../infra/countdown.ts'
+import { shelf } from '../infra/shelf.ts'
+import { clock } from '../ui/format.ts'
 
 type Mode = 'place' | 'line' | 'ride'
+
+const ASK = 800
 
 const MODES: Record<Mode, string> = { place: 'Lugar', line: 'Linha', ride: 'De → Para' }
 
@@ -52,6 +58,7 @@ export default function Home() {
     const marks = useMarks()
     const me = useMe()
     const alarms = useAlarms()
+    const [bells, setBells] = useState(false)
     const ride = mode === 'ride'
     const dest = ride ? ends.to : place
     const typing = ride && text[field].trim().length >= 3 && text[field] !== ends[field]?.name
@@ -65,6 +72,69 @@ export default function Home() {
     const origin = ride ? (ends.from?.point ?? null) : me.me
     const walk = useWalk(kit?.walker ?? null, open ? origin : null, open ? (line.leg?.board?.stop.point ?? null) : null)
     const found = useMemo(() => (kit && place ? kit.search.run(place.point, day, radius) : null), [kit, place, day, radius])
+
+    useEffect(() => {
+        if (shelf.get('asked', false)) {
+            return
+        }
+
+        let timer: ReturnType<typeof setTimeout> | undefined
+
+        const ask = () => {
+            timer = setTimeout(async () => {
+                await me.start()
+                await alarms.ready()
+                shelf.set('asked', true)
+            }, ASK)
+        }
+
+        if (AppState.currentState === 'active') {
+            ask()
+
+            return () => clearTimeout(timer)
+        }
+
+        const sub = AppState.addEventListener('change', (st) => {
+            if (st === 'active') {
+                sub.remove()
+                ask()
+            }
+        })
+
+        return () => {
+            sub.remove()
+            clearTimeout(timer)
+        }
+    }, [])
+
+    const ahead = useRef(alarms.all)
+    ahead.current = alarms.all
+
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (st) => {
+            if (st === 'active') {
+                countdown.clear()
+                return
+            }
+
+            countdown.show(
+                ahead.current.map((a) => ({
+                    id: a.key,
+                    title: `${a.code} · ônibus às ${clock(Math.floor(a.bus / 1000) - 3 * 3600)}`,
+                    text: `${a.name} · aviso ${a.lead} min antes`,
+                    at: a.bus,
+                })),
+            )
+        })
+
+        return () => sub.remove()
+    }, [])
+
+    useEffect(() => {
+        const i = setInterval(() => alarms.prune(), 30000)
+
+        return () => clearInterval(i)
+    }, [])
 
     useEffect(() => {
         const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -106,6 +176,13 @@ export default function Home() {
         setOpen(r.line.id)
         setSnap('mid')
         look(r.line.id, `${ends.from?.name ?? ''} → ${ends.to?.name ?? ''}`)
+    }
+
+    const openAlert = (a: Alert) => {
+        setBells(false)
+        setStart({ stop: a.stop, end: null })
+        setOpen(a.line)
+        setSnap('mid')
     }
 
     const spotRows = (on: (s: Spot) => void): Row[] =>
@@ -213,6 +290,12 @@ export default function Home() {
                     passa lá<Text style={{ color: t.sun }}>?</Text>
                 </Text>
             </View>
+
+            <View style={[s.tools, { top: top + 12 }]}>
+                {alarms.all.length > 0 && <Bell count={alarms.all.length} onPress={() => setBells(true)} />}
+            </View>
+
+            <Alerts open={bells} alerts={alarms.all} onClose={() => setBells(false)} onLine={openAlert} onCancel={alarms.cancel} />
 
             <Sheet snap={snap} onSnap={setSnap}>
                 {open && line.detail ? (
@@ -430,4 +513,5 @@ const s = StyleSheet.create({
     label: { fontSize: 13 },
     foot: { fontSize: 12, textAlign: 'center', paddingVertical: 8 },
     lists: { gap: 12, paddingBottom: 24 },
+    tools: { position: 'absolute', right: 16, flexDirection: 'row', gap: 8 },
 })

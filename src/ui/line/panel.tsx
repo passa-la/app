@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Place } from '../../domain/geo/place.ts'
 import type { Walk } from '../../domain/geo/walk.ts'
@@ -10,6 +11,7 @@ import type { Alarms } from '../alarms.ts'
 import type { Fav } from '../marks.ts'
 import type { Geo } from '../me.ts'
 import { Nick } from '../nick.tsx'
+import { Remind } from './remind.tsx'
 import { clock, DAYS, hours, label, wait } from '../format.ts'
 import { useTone } from '../theme.ts'
 import type { LineState } from './use.ts'
@@ -32,11 +34,10 @@ type Props = {
     walk?: Walk | null
 }
 
-const LEAD = 5
-
 export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onClose, from = null, geo, onLocate, alarms, walk = null }: Props) {
     const t = useTone()
     const { detail: d, day, today, end, way, leg, tab, table } = state
+    const [ask, setAsk] = useState<string | null>(null)
 
     if (!d) {
         return null
@@ -131,32 +132,58 @@ export function LinePanel({ state, dest = null, fav = null, onStar, onNick, onCl
                                     {soon.map((b, i) => {
                                         const k = `${d.line.id}|${leg.board?.stop.id}|${b.at}`
                                         const left = tab.wait(b)
-                                        const on = alarms?.has(k) ?? false
+                                        const set = alarms?.find(k) ?? null
+                                        const bus = Date.now() + (b.at - tab.now) * 1000
+                                        const where = named(leg.board!.stop)
+                                        const tail = b.end !== null ? ` · chega ~${clock(b.end)}` : ''
 
                                         return (
-                                            <View key={i} style={s.next}>
-                                                <Text style={[s.grow, { color: t.fg }]}>
-                                                    <Text style={s.at}>{clock(b.at)}</Text>
-                                                    {b.end !== null && <Text style={{ color: t.mute }}>{`  → chega ${clock(b.end)}`}</Text>}
-                                                </Text>
-                                                <Text style={[s.small, { color: t.mute }]}>{wait(left)}</Text>
-                                                {alarms && left > LEAD && (
-                                                    <Button
-                                                        variant="chip"
-                                                        on={on}
-                                                        label={on ? 'Cancelar aviso' : `Avisar ${LEAD} min antes`}
-                                                        onPress={() =>
-                                                            alarms.toggle(
-                                                                k,
-                                                                new Date(Date.now() + (b.at - tab.now - LEAD * 60) * 1000),
-                                                                `${d.line.code} passa em ${LEAD} min`,
-                                                                `${named(leg.board!.stop)} às ${clock(b.at)}${b.end !== null ? ` · chega ~${clock(b.end)}` : ''}`,
+                                            <View key={i} style={s.slot}>
+                                                <View style={s.next}>
+                                                    <Text style={[s.grow, { color: t.fg }]}>
+                                                        <Text style={s.at}>{clock(b.at)}</Text>
+                                                        {b.end !== null && <Text style={{ color: t.mute }}>{`  → chega ${clock(b.end)}`}</Text>}
+                                                    </Text>
+                                                    <Text style={[s.small, { color: t.mute }]}>{wait(left)}</Text>
+                                                    {alarms && left > 1 && (
+                                                        <Button
+                                                            variant="chip"
+                                                            on={!!set}
+                                                            label={set ? `Aviso ${set.lead} min antes` : 'Me avisar'}
+                                                            onPress={() => setAsk(ask === k ? null : k)}
+                                                            style={s.bell}
+                                                        >
+                                                            <Icon name={set ? 'bell' : 'bell-off-outline'} color={set ? t.paper : t.fg} size={16} />
+                                                            {set && <Text style={{ fontSize: 14, color: t.paper }}>{set.lead}</Text>}
+                                                        </Button>
+                                                    )}
+                                                </View>
+                                                {alarms && ask === k && (
+                                                    <Remind
+                                                        left={left}
+                                                        current={set}
+                                                        lead={alarms.lead}
+                                                        onPick={(min) => {
+                                                            setAsk(null)
+                                                            alarms.set(
+                                                                {
+                                                                    key: k,
+                                                                    line: d.line.id,
+                                                                    code: d.line.code,
+                                                                    stop: leg.board!.stop.id,
+                                                                    name: where,
+                                                                    bus,
+                                                                    title: `${d.line.code} passa em ${min} min`,
+                                                                    body: `${where} às ${clock(b.at)}${tail}`,
+                                                                },
+                                                                min,
                                                             )
-                                                        }
-                                                        style={s.bell}
-                                                    >
-                                                        <Text style={{ fontSize: 14 }}>{on ? '🔔' : '🔕'}</Text>
-                                                    </Button>
+                                                        }}
+                                                        onCancel={() => {
+                                                            setAsk(null)
+                                                            alarms.cancel(k)
+                                                        }}
+                                                    />
                                                 )}
                                             </View>
                                         )
@@ -227,10 +254,11 @@ const s = StyleSheet.create({
     over: { fontSize: 12, fontWeight: '500', letterSpacing: 0.6 },
     stop: { fontSize: 16, fontWeight: '600' },
     times: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6, paddingTop: 10, gap: 6 },
+    slot: { gap: 8 },
     next: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     grow: { flex: 1 },
     ask: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    bell: { paddingHorizontal: 8, paddingVertical: 4 },
+    bell: { paddingHorizontal: 8, paddingVertical: 4, gap: 4 },
     at: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
     left: { alignSelf: 'flex-start', marginLeft: -12 },
     hour: { flexDirection: 'row', gap: 14 },

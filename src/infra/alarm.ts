@@ -33,4 +33,8 @@ export const alarm = {
     cancel(id: string): Promise<void> {
         return Notifications.cancelScheduledNotificationAsync(id)
     },
+
+    async list(): Promise<string[]> {
+        return (await Notifications.getAllScheduledNotificationsAsync()).map((n) => n.identifier)
+    },
 }

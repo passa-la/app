@@ -34,7 +34,13 @@
           "locationWhenInUsePermission": "O passa l\u00e1? usa a sua localiza\u00e7\u00e3o pra mostrar onde voc\u00ea est\u00e1, a parada mais perto e o caminho a p\u00e9."
         }
       ],
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notify.png",
+          "color": "#FFC21A"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
