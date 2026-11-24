@@ -5,7 +5,7 @@ import { NetProvider } from '../ui/net.tsx'
 export default function Layout() {
     return (
         <NetProvider>
-            <StatusBar style="auto" />
+            <StatusBar style="dark" />
             <Stack screenOptions={{ headerShown: false }} />
         </NetProvider>
     )

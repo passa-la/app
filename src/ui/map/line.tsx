@@ -11,7 +11,7 @@ const INK = '#17150f'
 const HUB: [number, number] = [-34.8711, -8.0631]
 const SIDE = 3
 const DIM = 0.22
-const PAD = { top: 40, right: 40, bottom: 40, left: 40 }
+const EDGE = 40
 
 type Props = {
     ways: Way[]
@@ -19,6 +19,7 @@ type Props = {
     board: Stop | null
     drop: Stop | null
     onStop: (id: string) => void
+    bottom?: number
 }
 
 const pair = (p: Point): [number, number] => [p.lon, p.lat]
@@ -40,7 +41,7 @@ const box = (pts: Point[]): [number, number, number, number] | null => {
     return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
-export function LineMap({ ways, focus, board, drop, onStop }: Props) {
+export function LineMap({ ways, focus, board, drop, onStop, bottom = 0 }: Props) {
     const t = useTone()
     const cam = useRef<CameraRef>(null)
     const shown = useMemo(() => ways.filter((w) => focus === null || w.dir === focus), [ways, focus])
@@ -69,11 +70,12 @@ export function LineMap({ ways, focus, board, drop, onStop }: Props) {
     )
 
     const bounds = useMemo(() => box(shown.flatMap((w) => (w.points.length ? w.points : w.stops.map((s) => s.point)))), [shown])
-    const key = bounds?.join(',') ?? ''
+    const key = `${bounds?.join(',') ?? ''}|${bottom}`
+    const pad = { top: EDGE + 40, right: EDGE, bottom: EDGE + bottom, left: EDGE }
 
     useEffect(() => {
         if (bounds) {
-            cam.current?.fitBounds(bounds, { padding: PAD, duration: 500 })
+            cam.current?.fitBounds(bounds, { padding: pad, duration: 500 })
         }
     }, [key])
 
@@ -81,7 +83,7 @@ export function LineMap({ ways, focus, board, drop, onStop }: Props) {
 
     return (
         <Map style={s.map} mapStyle={STYLE} logo={false} compass={false}>
-            <Camera ref={cam} initialViewState={bounds ? { bounds, padding: PAD } : { center: HUB, zoom: 11 }} />
+            <Camera ref={cam} initialViewState={bounds ? { bounds, padding: pad } : { center: HUB, zoom: 11 }} />
 
             <GeoJSONSource id="paths" data={paths}>
                 <Layer
