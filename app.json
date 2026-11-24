@@ -22,7 +22,9 @@
     },
     "scheme": "passala",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-asset",
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true
